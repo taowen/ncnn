@@ -3017,6 +3017,19 @@ int Extractor::extract(int blob_index, VkMat& feat, VkCompute& cmd)
     if (blob_index < 0 || blob_index >= (int)d->blob_mats.size())
         return -1;
 
+    if (!d->opt.blob_vkallocator)
+    {
+        d->local_blob_vkallocator = d->net->vulkan_device()->acquire_blob_allocator();
+        d->opt.blob_vkallocator = d->local_blob_vkallocator;
+    }
+    if (!d->opt.workspace_vkallocator)
+        d->opt.workspace_vkallocator = d->opt.blob_vkallocator;
+    if (!d->opt.staging_vkallocator)
+    {
+        d->local_staging_vkallocator = d->net->vulkan_device()->acquire_staging_allocator();
+        d->opt.staging_vkallocator = d->local_staging_vkallocator;
+    }
+
     int old_blocktime = get_kmp_blocktime();
     set_kmp_blocktime(d->opt.openmp_blocktime);
 

@@ -73,6 +73,18 @@ static int g_default_gpu_index = -1;
 #define NCNN_MAX_GPU_COUNT 32
 static GpuInfo* g_gpu_infos[NCNN_MAX_GPU_COUNT] = {0};
 
+struct ExternalGpuRuntime
+{
+    VkInstance instance;
+    uint32_t instance_api_version;
+    VkPhysicalDevice physical_device;
+    VkDevice device;
+    uint32_t graphics_queue_family_index;
+    uint32_t queue_family_index;
+    VkQueue queue;
+};
+static ExternalGpuRuntime g_external_runtime = {};
+
 // default vulkan device
 static Mutex g_default_vkdev_lock;
 static VulkanDevice* g_default_vkdev[NCNN_MAX_GPU_COUNT] = {0};
@@ -2968,16 +2980,21 @@ int create_gpu_instance(const char* driver_path)
     instanceCreateInfo.enabledExtensionCount = enabledExtensions.size();
     instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 
-    VkInstance instance = 0;
-    ret = vkCreateInstance(&instanceCreateInfo, 0, &instance);
-    if (ret != VK_SUCCESS)
+    VkInstance instance = g_external_runtime.instance;
+    if (!instance)
     {
-        NCNN_LOGE("vkCreateInstance failed %d", ret);
-        return -1;
+        ret = vkCreateInstance(&instanceCreateInfo, 0, &instance);
+        if (ret != VK_SUCCESS)
+        {
+            NCNN_LOGE("vkCreateInstance failed %d", ret);
+            return -1;
+        }
     }
 
     g_instance.instance = instance;
-    g_instance.instance_api_version = instance_api_version;
+    g_instance.instance_api_version = g_external_runtime.instance
+        ? g_external_runtime.instance_api_version
+        : instance_api_version;
 
     init_instance_core();
 
@@ -3026,6 +3043,9 @@ int create_gpu_instance(const char* driver_path)
     for (uint32_t i = 0; i < physicalDeviceCount; i++)
     {
         const VkPhysicalDevice& physicalDevice = physicalDevices[i];
+        if (g_external_runtime.physical_device &&
+            physicalDevice != g_external_runtime.physical_device)
+            continue;
         delete g_gpu_infos[gpu_info_index];
         g_gpu_infos[gpu_info_index] = new GpuInfo;
 
@@ -3285,6 +3305,41 @@ int create_gpu_instance(const char* driver_path)
     return 0;
 }
 
+int create_gpu_instance_from_external(
+    VkInstance instance,
+    uint32_t instance_api_version,
+    VkPhysicalDevice physical_device,
+    VkDevice device,
+    uint32_t graphics_queue_family_index,
+    uint32_t queue_family_index,
+    VkQueue queue)
+{
+    if (!instance || !physical_device || !device || !queue)
+        return -1;
+
+    {
+        MutexLockGuard lock(g_instance_lock);
+        if (g_instance.created != 0)
+            return g_external_runtime.instance == instance &&
+                    g_external_runtime.physical_device == physical_device &&
+                    g_external_runtime.device == device &&
+                    g_external_runtime.graphics_queue_family_index == graphics_queue_family_index &&
+                    g_external_runtime.queue_family_index == queue_family_index &&
+                    g_external_runtime.queue == queue
+                ? 0 : -1;
+
+        g_external_runtime.instance = instance;
+        g_external_runtime.instance_api_version = instance_api_version;
+        g_external_runtime.physical_device = physical_device;
+        g_external_runtime.device = device;
+        g_external_runtime.graphics_queue_family_index = graphics_queue_family_index;
+        g_external_runtime.queue_family_index = queue_family_index;
+        g_external_runtime.queue = queue;
+    }
+
+    return create_gpu_instance();
+}
+
 VkInstance get_gpu_instance()
 {
     return (VkInstance)g_instance;
@@ -3330,7 +3385,7 @@ void destroy_gpu_instance()
     }
 #endif // ENABLE_VALIDATION_LAYER
 
-    if (vkDestroyInstance)
+    if (vkDestroyInstance && !g_external_runtime.instance)
     {
         vkDestroyInstance(g_instance, 0);
         vkDestroyInstance = 0;
@@ -3343,6 +3398,7 @@ void destroy_gpu_instance()
 #endif
 
     g_instance.created = 0;
+    g_external_runtime = {};
 }
 
 static void try_create_gpu_instance()
@@ -3427,6 +3483,7 @@ public:
     void destroy_utility_operator();
 
     VkDevice device;
+    bool owns_device;
 
     // hardware queue
     mutable std::vector<VkQueue> compute_queues;
@@ -3480,6 +3537,7 @@ VulkanDevicePrivate::VulkanDevicePrivate(VulkanDevice* _vkdev)
     : vkdev(_vkdev)
 {
     device = 0;
+    owns_device = true;
     texelfetch_sampler = 0;
     dummy_allocator = 0;
     pipeline_cache = 0;
@@ -3888,7 +3946,22 @@ VulkanDevice::VulkanDevice(int device_index)
     deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
     deviceCreateInfo.pEnabledFeatures = 0; // VkPhysicalDeviceFeatures pointer
 
-    VkResult ret = vkCreateDevice(info.physicalDevice(), &deviceCreateInfo, 0, &d->device);
+    VkResult ret = VK_SUCCESS;
+    if (g_external_runtime.device)
+    {
+        if (info.physicalDevice() != g_external_runtime.physical_device ||
+            info.compute_queue_family_index() != g_external_runtime.queue_family_index)
+        {
+            NCNN_LOGE("external Vulkan runtime queue family does not match ncnn gpu info");
+            return;
+        }
+        d->device = g_external_runtime.device;
+        d->owns_device = false;
+    }
+    else
+    {
+        ret = vkCreateDevice(info.physicalDevice(), &deviceCreateInfo, 0, &d->device);
+    }
     if (ret != VK_SUCCESS)
     {
         NCNN_LOGE("vkCreateDevice failed %d", ret);
@@ -3900,17 +3973,21 @@ VulkanDevice::VulkanDevice(int device_index)
     d->free_compute_queue_count = 0;
     d->free_transfer_queue_count = 0;
 
-    d->free_compute_queue_count = info.compute_queue_count();
-    d->compute_queues.resize(info.compute_queue_count());
-    d->blob_allocators.resize(info.compute_queue_count());
-    d->staging_allocators.resize(info.compute_queue_count());
-    for (uint32_t i = 0; i < info.compute_queue_count(); i++)
+    const uint32_t compute_queue_count = g_external_runtime.device ? 1u : info.compute_queue_count();
+    d->free_compute_queue_count = compute_queue_count;
+    d->compute_queues.resize(compute_queue_count);
+    d->blob_allocators.resize(compute_queue_count);
+    d->staging_allocators.resize(compute_queue_count);
+    for (uint32_t i = 0; i < compute_queue_count; i++)
     {
-        vkGetDeviceQueue(d->device, info.compute_queue_family_index(), i, &d->compute_queues[i]);
+        if (g_external_runtime.device)
+            d->compute_queues[i] = g_external_runtime.queue;
+        else
+            vkGetDeviceQueue(d->device, info.compute_queue_family_index(), i, &d->compute_queues[i]);
         d->blob_allocators[i] = new VkBlobAllocator(this);
         d->staging_allocators[i] = new VkStagingAllocator(this);
     }
-    if (info.compute_queue_family_index() != info.transfer_queue_family_index())
+    if (!g_external_runtime.device && info.compute_queue_family_index() != info.transfer_queue_family_index())
     {
         d->free_transfer_queue_count = info.transfer_queue_count();
         d->transfer_queues.resize(info.transfer_queue_count());
@@ -3988,7 +4065,7 @@ VulkanDevice::~VulkanDevice()
         delete d->pipeline_cache;
     }
 
-    if (d->device)
+    if (d->device && d->owns_device)
     {
         vkDestroyDevice(d->device, 0);
     }
@@ -4014,6 +4091,17 @@ VkDevice VulkanDevice::vkdevice() const
 bool VulkanDevice::is_valid() const
 {
     return d->valid;
+}
+
+bool VulkanDevice::external_buffer_queue_families(uint32_t& graphics, uint32_t& compute) const
+{
+    if (!g_external_runtime.device ||
+        g_external_runtime.graphics_queue_family_index == g_external_runtime.queue_family_index)
+        return false;
+
+    graphics = g_external_runtime.graphics_queue_family_index;
+    compute = g_external_runtime.queue_family_index;
+    return true;
 }
 
 VkShaderModule VulkanDevice::compile_shader_module(const uint32_t* spv_data, size_t spv_data_size) const

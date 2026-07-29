@@ -20,6 +20,18 @@ namespace ncnn {
 // Iterates over all supported physical devices, etc.
 NCNN_EXPORT int create_gpu_instance(const char* driver_path = 0);
 
+// Arctrl hard-fork API. Register one externally owned Vulkan runtime before
+// any ncnn GPU API is used. ncnn may create its allocators and pipelines on
+// this device, but never destroys the supplied instance, device, or queue.
+NCNN_EXPORT int create_gpu_instance_from_external(
+    VkInstance instance,
+    uint32_t instance_api_version,
+    VkPhysicalDevice physical_device,
+    VkDevice device,
+    uint32_t graphics_queue_family_index,
+    uint32_t queue_family_index,
+    VkQueue queue);
+
 // Get global VkInstance variable
 // Must be called after create_gpu_instance() and before destroy_gpu_instance()
 NCNN_EXPORT VkInstance get_gpu_instance();
@@ -440,6 +452,7 @@ public:
 
     VkDevice vkdevice() const;
     bool is_valid() const;
+    bool external_buffer_queue_families(uint32_t& graphics, uint32_t& compute) const;
 
     VkShaderModule compile_shader_module(const uint32_t* spv_data, size_t spv_data_size) const;
 

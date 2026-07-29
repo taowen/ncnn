@@ -64,7 +64,10 @@ public:
 #endif // __ANDROID_API__ >= 26
 #endif // NCNN_PLATFORM_API
 
-    int submit_and_wait();
+    int submit_and_wait(
+        VkSemaphore wait_semaphore = 0,
+        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VkSemaphore signal_semaphore = 0);
 
     int reset();
 

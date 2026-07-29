@@ -428,9 +428,19 @@ VkBuffer VkAllocator::create_buffer(size_t size, VkBufferUsageFlags usage)
     bufferCreateInfo.flags = 0;
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = usage;
-    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    bufferCreateInfo.queueFamilyIndexCount = 0;
-    bufferCreateInfo.pQueueFamilyIndices = 0;
+    uint32_t queueFamilyIndices[2] = {};
+    if (vkdev->external_buffer_queue_families(queueFamilyIndices[0], queueFamilyIndices[1]))
+    {
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        bufferCreateInfo.queueFamilyIndexCount = 2;
+        bufferCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
+    }
+    else
+    {
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferCreateInfo.queueFamilyIndexCount = 0;
+        bufferCreateInfo.pQueueFamilyIndices = 0;
+    }
 
     VkBuffer buffer = 0;
     VkResult ret = vkCreateBuffer(vkdev->vkdevice(), &bufferCreateInfo, 0, &buffer);
@@ -596,6 +606,9 @@ static inline size_t least_common_multiple(size_t a, size_t b)
 class VkBlobAllocatorPrivate
 {
 public:
+    // Arctrl keeps rendered depth VkMat objects alive on the graphics thread
+    // while the next ncnn inference allocates on the compute thread.
+    Mutex lock;
     size_t block_size;
     size_t buffer_offset_alignment;
     size_t bind_memory_offset_alignment;
@@ -649,6 +662,7 @@ VkBlobAllocator& VkBlobAllocator::operator=(const VkBlobAllocator&)
 
 void VkBlobAllocator::clear()
 {
+    MutexLockGuard guard(d->lock);
     //     NCNN_LOGE("VkBlobAllocator %lu", buffer_blocks.size());
 
     for (size_t i = 0; i < d->buffer_blocks.size(); i++)
@@ -694,6 +708,7 @@ void VkBlobAllocator::clear()
 
 VkBufferMemory* VkBlobAllocator::fastMalloc(size_t size)
 {
+    MutexLockGuard guard(d->lock);
     size_t aligned_size = alignSize(size, d->buffer_offset_alignment);
 
     const int buffer_block_count = d->buffer_blocks.size();
@@ -829,6 +844,7 @@ VkBufferMemory* VkBlobAllocator::fastMalloc(size_t size)
 
 void VkBlobAllocator::fastFree(VkBufferMemory* ptr)
 {
+    MutexLockGuard guard(d->lock);
     //     NCNN_LOGE("VkBlobAllocator F %p +%lu %lu", ptr->buffer, ptr->offset, ptr->capacity);
 
     const int buffer_block_count = d->buffer_blocks.size();
@@ -900,6 +916,7 @@ void VkBlobAllocator::fastFree(VkBufferMemory* ptr)
 
 VkImageMemory* VkBlobAllocator::fastMalloc(int w, int h, int c, size_t elemsize, int elempack)
 {
+    MutexLockGuard guard(d->lock);
     if (elempack != 1 && elempack != 4 && elempack != 8)
     {
         NCNN_LOGE("elempack must be 1 4 8");
@@ -1111,6 +1128,7 @@ VkImageMemory* VkBlobAllocator::fastMalloc(int w, int h, int c, size_t elemsize,
 
 void VkBlobAllocator::fastFree(VkImageMemory* ptr)
 {
+    MutexLockGuard guard(d->lock);
     //     NCNN_LOGE("VkBlobAllocator F %p +%lu %lu", ptr->memory, ptr->bind_offset, ptr->bind_capacity);
 
     const int image_memory_block_count = d->image_memory_blocks.size();
