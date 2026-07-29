@@ -477,7 +477,7 @@ public:
     VkImageMat get_dummy_image_readonly() const;
 
     // pipeline cache on this device
-    const PipelineCache* get_pipeline_cache() const;
+    PipelineCache* get_pipeline_cache() const;
 
     // test image allocation
     bool shape_support_image_storage(const Mat& shape) const;

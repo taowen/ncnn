@@ -1344,7 +1344,11 @@ int Net::load_param(const DataReader& dr)
 
             d->vkdev = get_gpu_device(device_index);
         }
-        if (!d->vkdev || !d->vkdev->is_valid()) opt.use_vulkan_compute = false; // no valid vulkan device, fallback to cpu
+        if (!d->vkdev || !d->vkdev->is_valid())
+        {
+            NCNN_LOGE("Vulkan-only runtime has no valid device");
+            return -1;
+        }
     }
     if (opt.use_vulkan_compute)
     {
@@ -1396,24 +1400,20 @@ int Net::load_param(const DataReader& dr)
         SCAN_VALUE("%d", bottom_count)
         SCAN_VALUE("%d", top_count)
 
-        Layer* layer = create_overwrite_builtin_layer(layer_type);
+        Layer* layer = 0;
 #if NCNN_VULKAN
-        if (!layer && opt.use_vulkan_compute && d->vkdev)
+        if (strcmp(layer_type, "Input") == 0)
+        {
+            layer = create_layer_cpu(layer_type);
+        }
+        else if (opt.use_vulkan_compute && d->vkdev)
         {
             layer = create_layer_vulkan(layer_type);
         }
 #endif // NCNN_VULKAN
         if (!layer)
         {
-            layer = create_layer_cpu(layer_type);
-        }
-        if (!layer)
-        {
-            layer = create_custom_layer(layer_type);
-        }
-        if (!layer)
-        {
-            NCNN_LOGE("layer %s not exists or registered", layer_type);
+            NCNN_LOGE("Vulkan layer %s not exists or registered", layer_type);
             clear();
             return -1;
         }
@@ -1534,44 +1534,10 @@ int Net::load_param(const DataReader& dr)
 
         if (layer_support_vulkan && (!layer->support_vulkan || !opt1.use_vulkan_compute))
         {
-            // vulkan layer cannot handle these param, recreate cpu layer
-            Layer* layer_cpu = create_overwrite_builtin_layer(layer_type);
-            if (!layer_cpu)
-            {
-                layer_cpu = create_layer_cpu(layer_type);
-            }
-            if (!layer_cpu)
-            {
-                layer_cpu = create_custom_layer(layer_type);
-            }
-            if (!layer_cpu)
-            {
-                NCNN_LOGE("layer %s not exists or registered", layer_type);
-                delete layer;
-                clear();
-                return -1;
-            }
-
-            layer_cpu->type = layer->type;
-            layer_cpu->name = layer->name;
-            layer_cpu->bottoms = layer->bottoms;
-            layer_cpu->tops = layer->tops;
-            layer_cpu->bottom_shapes = layer->bottom_shapes;
-            layer_cpu->top_shapes = layer->top_shapes;
-            layer_cpu->featmask = layer->featmask;
-
-            int lr = layer_cpu->load_param(pd);
-            if (lr != 0)
-            {
-                NCNN_LOGE("layer load_param %d %s failed", i, layer_name);
-                delete layer;
-                delete layer_cpu;
-                clear();
-                return -1;
-            }
-
+            NCNN_LOGE("Vulkan layer %s rejected fixed-model parameters", layer_type);
             delete layer;
-            layer = layer_cpu;
+            clear();
+            return -1;
         }
 
         // set bottom and top shape hints
@@ -1718,7 +1684,11 @@ int Net::load_param_bin(const DataReader& dr)
 
             d->vkdev = get_gpu_device(device_index);
         }
-        if (!d->vkdev || !d->vkdev->is_valid()) opt.use_vulkan_compute = false; // no valid vulkan device, fallback to cpu
+        if (!d->vkdev || !d->vkdev->is_valid())
+        {
+            NCNN_LOGE("Vulkan-only runtime has no valid device");
+            return -1;
+        }
     }
     if (opt.use_vulkan_compute)
     {
@@ -1767,25 +1737,20 @@ int Net::load_param_bin(const DataReader& dr)
         READ_VALUE(bottom_count)
         READ_VALUE(top_count)
 
-        Layer* layer = create_overwrite_builtin_layer(typeindex);
+        Layer* layer = 0;
 #if NCNN_VULKAN
-        if (!layer && opt.use_vulkan_compute && d->vkdev)
+        if (typeindex == LayerType::Input)
+        {
+            layer = create_layer_cpu(typeindex);
+        }
+        else if (opt.use_vulkan_compute && d->vkdev)
         {
             layer = create_layer_vulkan(typeindex);
         }
 #endif // NCNN_VULKAN
         if (!layer)
         {
-            layer = create_layer_cpu(typeindex);
-        }
-        if (!layer)
-        {
-            int custom_index = typeindex & ~LayerType::CustomBit;
-            layer = create_custom_layer(custom_index);
-        }
-        if (!layer)
-        {
-            NCNN_LOGE("layer %d not exists or registered", typeindex);
+            NCNN_LOGE("Vulkan layer %d not exists or registered", typeindex);
             clear();
             return -1;
         }
@@ -1891,43 +1856,10 @@ int Net::load_param_bin(const DataReader& dr)
 
         if (layer_support_vulkan && (!layer->support_vulkan || !opt1.use_vulkan_compute))
         {
-            // vulkan layer cannot handle these param, recreate cpu layer
-            Layer* layer_cpu = create_overwrite_builtin_layer(typeindex);
-            if (!layer_cpu)
-            {
-                layer_cpu = create_layer_cpu(typeindex);
-            }
-            if (!layer_cpu)
-            {
-                int custom_index = typeindex & ~LayerType::CustomBit;
-                layer_cpu = create_custom_layer(custom_index);
-            }
-            if (!layer_cpu)
-            {
-                NCNN_LOGE("layer %d not exists or registered", typeindex);
-                delete layer;
-                clear();
-                return -1;
-            }
-
-            layer_cpu->bottoms = layer->bottoms;
-            layer_cpu->tops = layer->tops;
-            layer_cpu->bottom_shapes = layer->bottom_shapes;
-            layer_cpu->top_shapes = layer->top_shapes;
-            layer_cpu->featmask = layer->featmask;
-
-            int lr = layer_cpu->load_param(pd);
-            if (lr != 0)
-            {
-                NCNN_LOGE("layer load_param %d failed", i);
-                delete layer;
-                delete layer_cpu;
-                clear();
-                return -1;
-            }
-
+            NCNN_LOGE("Vulkan layer %d rejected fixed-model parameters", typeindex);
             delete layer;
-            layer = layer_cpu;
+            clear();
+            return -1;
         }
 
         // set bottom and top shape hints

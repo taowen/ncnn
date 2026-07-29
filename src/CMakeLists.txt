@@ -179,14 +179,11 @@ if(NCNN_VULKAN)
     ncnn_add_shader(${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/shader/vulkan_activation.comp)
 endif()
 
-add_custom_target(ncnn-generate-spirv DEPENDS ${NCNN_SHADER_SPV_HEX_FILES})
-
 # create new
 configure_file(layer_declaration.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_declaration.h)
 configure_file(layer_registry.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_registry.h)
 configure_file(layer_type_enum.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_type_enum.h)
 configure_file(layer_shader_registry.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_shader_registry.h)
-configure_file(layer_shader_spv_data.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_shader_spv_data.h)
 configure_file(layer_shader_type_enum.h.in ${CMAKE_CURRENT_BINARY_DIR}/layer_shader_type_enum.h)
 
 if(NCNN_SHARED_LIB)
@@ -335,9 +332,6 @@ if(NCNN_VULKAN)
         target_link_libraries(ncnn PUBLIC Vulkan::Vulkan)
     endif()
 
-    # link in-house glslang
-    target_include_directories(ncnn PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>)
-    target_link_libraries(ncnn PRIVATE glslang SPIRV)
 endif()
 
 if(NCNN_PLATFORM_API AND ANDROID)
@@ -740,7 +734,6 @@ if(NCNN_ASAN)
     target_link_libraries(ncnn PUBLIC -fsanitize=address)
 endif()
 
-add_dependencies(ncnn ncnn-generate-spirv)
 
 if(NCNN_INSTALL_SDK)
     include(GNUInstallDirs)
@@ -803,4 +796,3 @@ endif()
 # add ncnn and generate-spirv to a virtual project group
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(TARGET ncnn PROPERTY FOLDER "libncnn")
-set_property(TARGET ncnn-generate-spirv PROPERTY FOLDER "libncnn")

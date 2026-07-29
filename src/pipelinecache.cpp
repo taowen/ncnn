@@ -774,6 +774,59 @@ int PipelineCache::load_cache(const std::vector<unsigned char>& data) const
     return load_cache(data.data(), data.size());
 }
 
+int PipelineCache::load_spirv_cache(const unsigned char* data, size_t size) const
+{
+    if (!data || size < sizeof(PipelineCachePrivate::cache_file_header))
+        return -1;
+
+    PipelineCachePrivate::cache_file_header source_header;
+    memcpy(&source_header, data, sizeof(source_header));
+    if (source_header.magic != NCNN_PIPELINE_CACHE_FILE_MAGIC ||
+        source_header.version != NCNN_PIPELINE_CACHE_FILE_VERSION ||
+        source_header.header_size != sizeof(PipelineCachePrivate::cache_file_header) ||
+        source_header.ncnn_version != NCNN_PIPELINE_CACHE_NCNN_VERSION ||
+        source_header.endian != NCNN_PIPELINE_CACHE_FILE_ENDIAN ||
+        source_header.pointer_size != sizeof(void*) ||
+        source_header.spirv_cache_size > size - sizeof(source_header) ||
+        sizeof(source_header) + source_header.spirv_cache_size != size)
+        return -1;
+
+    std::vector<unsigned char> portable(data, data + size);
+    size_t spirv_offset = sizeof(source_header);
+    for (uint32_t i = 0; i < source_header.spirv_entry_count; i++)
+    {
+        if (spirv_offset + sizeof(PipelineCachePrivate::spirv_cache_entry_header) > portable.size())
+            return -1;
+        PipelineCachePrivate::spirv_cache_entry_header entry_header;
+        memcpy(&entry_header, portable.data() + spirv_offset, sizeof(entry_header));
+        const uint64_t source_hash = get_shader_source_hash(entry_header.shader_type_index);
+        if (source_hash == 0 || entry_header.spv_size > portable.size() - spirv_offset - sizeof(entry_header))
+            return -1;
+        entry_header.shader_source_hash = source_hash;
+        memcpy(portable.data() + spirv_offset, &entry_header, sizeof(entry_header));
+        spirv_offset += sizeof(entry_header) + entry_header.spv_size;
+    }
+    if (spirv_offset != portable.size())
+        return -1;
+
+    PipelineCachePrivate::cache_file_header runtime_header;
+    fill_cache_file_header(runtime_header, vkdev);
+    runtime_header.spirv_entry_count = source_header.spirv_entry_count;
+    runtime_header.spirv_cache_size = source_header.spirv_cache_size;
+    runtime_header.spirv_cache_hash = fnv1a_32(
+        portable.data() + sizeof(runtime_header), (int)source_header.spirv_cache_size
+    );
+    memcpy(portable.data(), &runtime_header, sizeof(runtime_header));
+    return load_cache(portable.data(), portable.size());
+}
+
+int PipelineCache::load_spirv_cache(const std::vector<unsigned char>& data) const
+{
+    if (data.empty())
+        return -1;
+    return load_spirv_cache(data.data(), data.size());
+}
+
 #if NCNN_STDIO
 int PipelineCache::save_cache(FILE* fp) const
 {
@@ -880,6 +933,34 @@ int PipelineCache::load_cache(const char* path) const
     fclose(fp);
 
     return ret;
+}
+
+int PipelineCache::load_spirv_cache(const char* path) const
+{
+    if (!path)
+        return -1;
+
+    FILE* fp = fopen(path, "rb");
+    if (!fp)
+        return -1;
+    if (fseek(fp, 0, SEEK_END) != 0)
+    {
+        fclose(fp);
+        return -1;
+    }
+    const long file_size = ftell(fp);
+    if (file_size <= 0 || fseek(fp, 0, SEEK_SET) != 0)
+    {
+        fclose(fp);
+        return -1;
+    }
+
+    std::vector<unsigned char> data((size_t)file_size);
+    const size_t read_size = fread(data.data(), 1, data.size(), fp);
+    fclose(fp);
+    if (read_size != data.size())
+        return -1;
+    return load_spirv_cache(data);
 }
 
 #if defined(_WIN32)

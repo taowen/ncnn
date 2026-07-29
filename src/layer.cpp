@@ -444,75 +444,7 @@ Layer* create_layer_cpu(int index)
     if (index < 0 || index >= layer_registry_entry_count)
         return 0;
 
-    // clang-format off
-    // *INDENT-OFF*
-    layer_creator_func layer_creator = 0;
-#if NCNN_RUNTIME_CPU && NCNN_AVX512
-    if (ncnn::cpu_support_x86_avx512())
-    {
-        layer_creator = layer_registry_avx512[index].creator;
-    }
-    else
-#endif// NCNN_RUNTIME_CPU && NCNN_AVX512
-#if NCNN_RUNTIME_CPU && NCNN_FMA
-    if (ncnn::cpu_support_x86_fma())
-    {
-        layer_creator = layer_registry_fma[index].creator;
-    }
-    else
-#endif// NCNN_RUNTIME_CPU && NCNN_FMA
-#if NCNN_RUNTIME_CPU && NCNN_AVX
-    if (ncnn::cpu_support_x86_avx())
-    {
-        layer_creator = layer_registry_avx[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_AVX
-#if NCNN_RUNTIME_CPU && NCNN_LASX
-    if (ncnn::cpu_support_loongarch_lasx())
-    {
-        layer_creator = layer_registry_lasx[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_LASX
-#if NCNN_RUNTIME_CPU && NCNN_LSX
-    if (ncnn::cpu_support_loongarch_lsx())
-    {
-        layer_creator = layer_registry_lsx[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_LSX
-#if NCNN_RUNTIME_CPU && NCNN_MSA
-    if (ncnn::cpu_support_mips_msa())
-    {
-        layer_creator = layer_registry_msa[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_MSA
-#if NCNN_RUNTIME_CPU && NCNN_XTHEADVECTOR
-    if (ncnn::cpu_support_riscv_xtheadvector())
-    {
-        layer_creator = layer_registry_xtheadvector[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_XTHEADVECTOR
-#if NCNN_RUNTIME_CPU && NCNN_RVV
-    if (ncnn::cpu_support_riscv_v())
-    {
-        layer_creator = layer_registry_rvv[index].creator;
-    }
-    else
-#endif // NCNN_RUNTIME_CPU && NCNN_RVV
-    {
-        layer_creator = layer_registry_arch[index].creator;
-    }
-
-    if (!layer_creator)
-    {
-        layer_creator = layer_registry[index].creator;
-    }
-    // *INDENT-ON*
-    // clang-format on
+    layer_creator_func layer_creator = layer_registry[index].creator;
     if (!layer_creator)
         return 0;
 

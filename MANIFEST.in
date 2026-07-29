@@ -1,8 +1,5 @@
 recursive-include cmake *
 
-recursive-include glslang *
-prune glslang/Test
-
 recursive-include src *
 
 recursive-include python *

@@ -32,12 +32,15 @@ public:
     int save_cache(std::vector<unsigned char>& data) const;
     int load_cache(const unsigned char* data, size_t size) const;
     int load_cache(const std::vector<unsigned char>& data) const;
+    int load_spirv_cache(const unsigned char* data, size_t size) const;
+    int load_spirv_cache(const std::vector<unsigned char>& data) const;
 
 #if NCNN_STDIO
     int save_cache(FILE* fp) const;
     int load_cache(FILE* fp) const;
     int save_cache(const char* path) const;
     int load_cache(const char* path) const;
+    int load_spirv_cache(const char* path) const;
 #if _WIN32
     int save_cache(const wchar_t* path) const;
     int load_cache(const wchar_t* path) const;
