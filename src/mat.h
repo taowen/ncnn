@@ -331,9 +331,6 @@ public:
 #endif // NCNN_PLATFORM_API
 #endif // NCNN_PIXEL
 
-    // substract channel-wise mean values, then multiply by normalize values, pass 0 to skip
-    void substract_mean_normalize(const float* mean_vals, const float* norm_vals);
-
     // convenient construct from half precision floating point data
     static Mat from_float16(const unsigned short* data, int size);
 
@@ -863,31 +860,13 @@ NCNN_EXPORT NCNN_FORCEINLINE unsigned short bfloat8_to_float16(unsigned char val
     return value << 8;
 }
 
-// mat process
-enum BorderType
-{
-    BORDER_CONSTANT = 0,
-    BORDER_REPLICATE = 1,
-    BORDER_REFLECT = 2,
-    BORDER_TRANSPARENT = -233,
-};
-NCNN_EXPORT void copy_make_border(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int type, float v, const Option& opt = Option());
-NCNN_EXPORT void copy_make_border_3d(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int front, int behind, int type, float v, const Option& opt = Option());
-NCNN_EXPORT void copy_cut_border(const Mat& src, Mat& dst, int top, int bottom, int left, int right, const Option& opt = Option());
-NCNN_EXPORT void copy_cut_border_3d(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int front, int behind, const Option& opt = Option());
-NCNN_EXPORT void resize_nearest(const Mat& src, Mat& dst, int w, int h, const Option& opt = Option());
-NCNN_EXPORT void resize_bilinear(const Mat& src, Mat& dst, int w, int h, const Option& opt = Option());
-NCNN_EXPORT void resize_bicubic(const Mat& src, Mat& dst, int w, int h, const Option& opt = Option());
+// mat process used by Arctrl's fixed Vulkan graph
 NCNN_EXPORT void convert_packing(const Mat& src, Mat& dst, int elempack, const Option& opt = Option());
-NCNN_EXPORT void flatten(const Mat& src, Mat& dst, const Option& opt = Option());
 NCNN_EXPORT void cast_float32_to_float16(const Mat& src, Mat& dst, const Option& opt = Option());
 NCNN_EXPORT void cast_float16_to_float32(const Mat& src, Mat& dst, const Option& opt = Option());
 NCNN_EXPORT void cast_int8_to_float32(const Mat& src, Mat& dst, const Option& opt = Option());
 NCNN_EXPORT void cast_float32_to_bfloat16(const Mat& src, Mat& dst, const Option& opt = Option());
 NCNN_EXPORT void cast_bfloat16_to_float32(const Mat& src, Mat& dst, const Option& opt = Option());
-NCNN_EXPORT void quantize_to_int8(const Mat& src, Mat& dst, const Mat& scale_data, const Option& opt = Option());
-NCNN_EXPORT void dequantize_from_int32(const Mat& src, Mat& dst, const Mat& scale_data, const Mat& bias_data, const Option& opt = Option());
-NCNN_EXPORT void requantize_from_int32_to_int8(const Mat& src, Mat& dst, const Mat& scale_in_data, const Mat& scale_out_data, const Mat& bias_data, int activation_type, const Mat& activation_params, const Option& opt = Option());
 
 NCNN_FORCEINLINE Mat::Mat()
     : data(0), refcount(0), elemsize(0), elempack(0), allocator(0), dims(0), w(0), h(0), d(0), c(0), cstep(0)

@@ -22,6 +22,9 @@ macro(ncnn_add_layer class)
         list(APPEND ncnn_SRCS ${LAYER_CPU_SRC})
 
         set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/${name}_vulkan.cpp)
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
+            set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
+        endif()
         if(NCNN_VULKAN AND EXISTS ${LAYER_VULKAN_SRC})
             set(WITH_LAYER_${name}_vulkan 1)
             list(APPEND ncnn_SRCS ${LAYER_VULKAN_SRC})
@@ -49,18 +52,14 @@ macro(ncnn_add_layer class)
         file(GLOB NCNN_SHADER_SRCS "layer/vulkan/shader/${name}.comp")
         file(GLOB NCNN_SHADER_SUBSRCS "layer/vulkan/shader/${name}_*.comp")
         list(APPEND NCNN_SHADER_SRCS ${NCNN_SHADER_SUBSRCS})
-        if(NOT NCNN_BATCH AND name STREQUAL "reshape")
-            list(REMOVE_ITEM NCNN_SHADER_SRCS
-                ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/shader/reshape_batch_reorder.comp
-                ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/shader/reshape_batch_reorder_pack1to4.comp
-                ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/shader/reshape_batch_reorder_pack4.comp
-                ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/shader/reshape_batch_reorder_pack4to1.comp)
-        endif()
+        # Keep the shader registry stable even though Arctrl only supports
+        # single-frame inference. Immutable SPIR-V caches address shaders by
+        # this generated registry order.
         foreach(NCNN_SHADER_SRC ${NCNN_SHADER_SRCS})
             ncnn_add_shader(${NCNN_SHADER_SRC})
         endforeach()
 
-        source_group ("sources\\\\layers\\\\vulkan" FILES "${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/${name}_vulkan.cpp")
+        source_group ("sources\\\\layers\\\\vulkan" FILES "${LAYER_VULKAN_SRC}")
     endif()
 
     if(WITH_LAYER_${name} AND (name STREQUAL "input" OR name STREQUAL "packing" OR name STREQUAL "cast"))
