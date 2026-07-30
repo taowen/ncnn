@@ -249,36 +249,29 @@ int Compare(const ncnn::Mat& a, const ncnn::Mat& b, float epsilon)
     CHECK_MEMBER(h)
     CHECK_MEMBER(d)
     CHECK_MEMBER(c)
-    CHECK_MEMBER(n)
     CHECK_MEMBER(elemsize)
     CHECK_MEMBER(elempack)
 
 #undef CHECK_MEMBER
 
-    for (int n = 0; n < a.n; n++)
+    for (int q = 0; q < a.c; q++)
     {
-        const ncnn::Mat ba = a.batch(n);
-        const ncnn::Mat bb = b.batch(n);
-
-        for (int q = 0; q < a.c; q++)
+        const ncnn::Mat ma = a.channel(q);
+        const ncnn::Mat mb = b.channel(q);
+        for (int z = 0; z < a.d; z++)
         {
-            const ncnn::Mat ma = ba.channel(q);
-            const ncnn::Mat mb = bb.channel(q);
-            for (int z = 0; z < a.d; z++)
+            const ncnn::Mat da = ma.depth(z);
+            const ncnn::Mat db = mb.depth(z);
+            for (int i = 0; i < a.h; i++)
             {
-                const ncnn::Mat da = ma.depth(z);
-                const ncnn::Mat db = mb.depth(z);
-                for (int i = 0; i < a.h; i++)
+                const float* pa = da.row(i);
+                const float* pb = db.row(i);
+                for (int j = 0; j < a.w; j++)
                 {
-                    const float* pa = da.row(i);
-                    const float* pb = db.row(i);
-                    for (int j = 0; j < a.w; j++)
+                    if (!NearlyEqual(pa[j], pb[j], epsilon))
                     {
-                        if (!NearlyEqual(pa[j], pb[j], epsilon))
-                        {
-                            fprintf(stderr, "value not match  at n:%d c:%d d:%d h:%d w:%d    expect %f but got %f\n", n, q, z, i, j, pa[j], pb[j]);
-                            return -1;
-                        }
+                        fprintf(stderr, "value not match at c:%d d:%d h:%d w:%d expect %f but got %f\n", q, z, i, j, pa[j], pb[j]);
+                        return -1;
                     }
                 }
             }

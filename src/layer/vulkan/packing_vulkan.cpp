@@ -190,8 +190,6 @@ int Packing_vulkan::destroy_pipeline(const Option& /*opt*/)
 int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute& cmd, const Option& opt) const
 {
     const int elempack = bottom_blob.elempack;
-    const int B = bottom_blob.n;
-    // NCNN_LOGE("Packing_vulkan b2b %d %d   %d %d  n=%d", elempack, out_elempack, cast_type_from, cast_type_to, B);
 
     if (elempack == out_elempack && cast_type_from == cast_type_to && bottom_blob.allocator == opt.blob_vkallocator)
     {
@@ -259,18 +257,12 @@ int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute
             top_blob.cstep = bottom_blob.cstep * elempack;
             top_blob.elemsize = bottom_blob.elemsize / elempack;
             top_blob.elempack = out_elempack;
-#if NCNN_BATCH
-            top_blob.nstep = bottom_blob.nstep * bottom_blob.elemsize / top_blob.elemsize;
-#endif
             return 0;
         }
 
         int outw = (w * elempack + out_elempack - 1) / out_elempack;
 
-        if (B > 1)
-            top_blob.create(outw, out_elemsize, out_elempack, B, opt.blob_vkallocator);
-        else
-            top_blob.create(outw, out_elemsize, out_elempack, opt.blob_vkallocator);
+        top_blob.create(outw, out_elemsize, out_elempack, opt.blob_vkallocator);
         if (top_blob.empty())
             return -100;
     }
@@ -279,10 +271,7 @@ int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute
     {
         int outh = (h * elempack + out_elempack - 1) / out_elempack;
 
-        if (B > 1)
-            top_blob.create(w, outh, out_elemsize, out_elempack, B, opt.blob_vkallocator);
-        else
-            top_blob.create(w, outh, out_elemsize, out_elempack, opt.blob_vkallocator);
+        top_blob.create(w, outh, out_elemsize, out_elempack, opt.blob_vkallocator);
         if (top_blob.empty())
             return -100;
     }
@@ -291,10 +280,7 @@ int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute
     {
         int outc = (channels * elempack + out_elempack - 1) / out_elempack;
 
-        if (B > 1)
-            top_blob.create(w, h, outc, out_elemsize, out_elempack, B, opt.blob_vkallocator);
-        else
-            top_blob.create(w, h, outc, out_elemsize, out_elempack, opt.blob_vkallocator);
+        top_blob.create(w, h, outc, out_elemsize, out_elempack, opt.blob_vkallocator);
         if (top_blob.empty())
             return -100;
     }
@@ -303,19 +289,13 @@ int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute
     {
         int outc = (channels * elempack + out_elempack - 1) / out_elempack;
 
-        if (B > 1)
-            top_blob.create(w, h, d, outc, out_elemsize, out_elempack, B, opt.blob_vkallocator);
-        else
-            top_blob.create(w, h, d, outc, out_elemsize, out_elempack, opt.blob_vkallocator);
+        top_blob.create(w, h, d, outc, out_elemsize, out_elempack, opt.blob_vkallocator);
         if (top_blob.empty())
             return -100;
     }
 
-    // dispatch per batch, writing directly to batch sub-views
-    for (int b = 0; b < B; b++)
-    {
-        const VkMat bottom_b = B > 1 ? bottom_blob.batch(b) : bottom_blob;
-        const VkMat top_b = B > 1 ? top_blob.batch(b) : top_blob;
+        const VkMat& bottom_b = bottom_blob;
+        const VkMat& top_b = top_blob;
 
         std::vector<VkMat> buffer_bindings(4);
         buffer_bindings[0] = bottom_b;
@@ -449,8 +429,6 @@ int Packing_vulkan::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute
                 cmd.record_pipeline(pipeline_packing_pack4to1, buffer_bindings, constants, dispatcher);
             }
         }
-    }
-
     return 0;
 }
 

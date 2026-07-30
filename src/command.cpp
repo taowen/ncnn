@@ -401,12 +401,7 @@ void VkCompute::record_upload(const Mat& src, VkMat& dst, const Option& opt)
     //     NCNN_LOGE("upload_staging_buffer %p  ->   %p +%d ~%d", src_fp16.data, dst_staging.buffer(), dst_staging.buffer_offset(), dst_staging.buffer_capacity());
 
     // memcpy src to device
-    for (int b = 0; b < src_fp16.n; b++)
-    {
-        const Mat src_b = src_fp16.batch(b);
-        VkMat staging_b = dst_staging.batch(b);
-        memcpy(staging_b.mapped_ptr(), src_b.data, src_b.total() * src_b.elemsize);
-    }
+    memcpy(dst_staging.mapped_ptr(), src_fp16.data, src_fp16.total() * src_fp16.elemsize);
     dst_staging.allocator->flush(dst_staging.data);
 
     // mark device host-write @ null
@@ -539,13 +534,13 @@ void VkCompute::record_download(const VkMat& src, Mat& dst, const Option& opt)
         {
             int dims = dst_fp16.dims;
             if (dims == 1)
-                dst.create(dst_fp16.w, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 2)
-                dst.create(dst_fp16.w, dst_fp16.h, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 3)
-                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 4)
-                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.d, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.d, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
 
             d->download_post_mats.push_back(dst);
 
@@ -561,13 +556,13 @@ void VkCompute::record_download(const VkMat& src, Mat& dst, const Option& opt)
         {
             int dims = dst_fp16.dims;
             if (dims == 1)
-                dst.create(dst_fp16.w, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 2)
-                dst.create(dst_fp16.w, dst_fp16.h, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 3)
-                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
             if (dims == 4)
-                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.d, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, dst_fp16.n, opt.blob_allocator);
+                dst.create(dst_fp16.w, dst_fp16.h, dst_fp16.d, dst_fp16.c, (size_t)(dst_fp16.elempack * 4u), dst_fp16.elempack, opt.blob_allocator);
 
             d->download_post_mats.push_back(dst);
 
@@ -601,12 +596,7 @@ void VkCompute::record_clone(const Mat& src, VkMat& dst, const Option& opt)
         return;
 
     // memcpy src to device
-    for (int b = 0; b < src.n; b++)
-    {
-        const Mat src_b = src.batch(b);
-        VkMat staging_b = dst_staging.batch(b);
-        memcpy(staging_b.mapped_ptr(), src_b.data, src_b.total() * src_b.elemsize);
-    }
+    memcpy(dst_staging.mapped_ptr(), src.data, src.total() * src.elemsize);
     dst_staging.allocator->flush(dst_staging.data);
 
     // mark device host-write @ null
@@ -1998,12 +1988,7 @@ int VkCompute::submit_and_wait(
             // NCNN_LOGE("post_download  %p +%d ~%d  -> %p", src.buffer(), src.buffer_offset(), src.buffer_capacity(), dst.data);
 
             src.allocator->invalidate(src.data);
-            for (int b = 0; b < dst.n; b++)
-            {
-                const VkMat src_b = src.batch(b);
-                Mat dst_b = dst.batch(b);
-                memcpy(dst_b.data, src_b.mapped_ptr(), dst_b.total() * dst_b.elemsize);
-            }
+            memcpy(dst.data, src.mapped_ptr(), dst.total() * dst.elemsize);
             break;
         }
         case VkComputePrivate::record::TYPE_post_cast_float16_to_float32:
@@ -2611,12 +2596,7 @@ void VkTransfer::record_upload(const Mat& src, VkMat& dst, const Option& opt, bo
     if (dst.allocator->mappable)
     {
         // memcpy src_flattened to device
-        for (int b = 0; b < src_flattened.n; b++)
-        {
-            const Mat src_b = src_flattened.batch(b);
-            VkMat dst_b = dst.batch(b);
-            memcpy(dst_b.mapped_ptr(), src_b.data, src_b.total() * src_b.elemsize);
-        }
+        memcpy(dst.mapped_ptr(), src_flattened.data, src_flattened.total() * src_flattened.elemsize);
         dst.allocator->flush(dst.data);
 
         // barrier device host-write @ null to shader-read @ compute
@@ -2650,12 +2630,7 @@ void VkTransfer::record_upload(const Mat& src, VkMat& dst, const Option& opt, bo
     dst_staging.create_like(src_flattened, opt.staging_vkallocator);
 
     // memcpy src_flattened to staging
-    for (int b = 0; b < src_flattened.n; b++)
-    {
-        const Mat src_b = src_flattened.batch(b);
-        VkMat staging_b = dst_staging.batch(b);
-        memcpy(staging_b.mapped_ptr(), src_b.data, src_b.total() * src_b.elemsize);
-    }
+    memcpy(dst_staging.mapped_ptr(), src_flattened.data, src_flattened.total() * src_flattened.elemsize);
     dst_staging.allocator->flush(dst_staging.data);
 
     VkCommandBuffer command_buffer;

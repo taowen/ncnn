@@ -75,8 +75,6 @@ public:
     // vulkan accept input blob with any elempack
     bool support_vulkan_any_packing;
 
-    // support batched input (n > 1), replaces support_reserved_1
-    bool support_batch;
     bool support_reserved_2;
     bool support_reserved_3;
     bool support_reserved_4;

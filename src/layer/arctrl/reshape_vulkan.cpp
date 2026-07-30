@@ -8,12 +8,6 @@ Reshape_vulkan::Reshape_vulkan()
       pipeline_reshape_pack4(0),
       pipeline_reshape_pack1to4(0),
       pipeline_reshape_pack4to1(0)
-#if NCNN_BATCH
-    , pipeline_reshape_batch_reorder(0),
-      pipeline_reshape_batch_reorder_pack4(0),
-      pipeline_reshape_batch_reorder_pack1to4(0),
-      pipeline_reshape_batch_reorder_pack4to1(0)
-#endif
 {
     support_vulkan = true;
     support_vulkan_packing = true;

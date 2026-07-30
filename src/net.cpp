@@ -631,58 +631,6 @@ int NetPrivate::do_forward_layer(const Layer* layer, std::vector<Mat>& blob_mats
         if (ret != 0)
             return ret;
 
-#if NCNN_BATCH
-        // batch forward
-        if (bottom_blob.n > 1 && !layer->support_batch)
-        {
-            const int B = bottom_blob.n;
-
-            if (opt.lightmode && layer->support_inplace)
-            {
-                for (int b = 0; b < B; b++)
-                {
-                    Mat batch_view = bottom_blob.batch(b);
-                    int ret = layer->forward_inplace(batch_view, opt);
-                    if (ret != 0)
-                        return ret;
-                }
-
-                // store top blob (whole batch, inplace modified)
-                blob_mats[top_blob_index] = bottom_blob;
-            }
-            else
-            {
-                Mat top_batch;
-                for (int b = 0; b < B; b++)
-                {
-                    Mat bottom_b = bottom_blob.batch(b);
-                    Mat top_b;
-                    int ret = layer->forward(bottom_b, top_b, opt);
-                    if (ret != 0)
-                        return ret;
-
-                    if (b == 0)
-                    {
-                        top_batch.create_like(top_b, B, opt.blob_allocator);
-                        if (top_batch.empty())
-                            return -100;
-                    }
-
-                    memcpy(top_batch.batch(b), top_b, top_b.total() * top_b.elemsize);
-                }
-
-                // store top blob
-                blob_mats[top_blob_index] = top_batch;
-            }
-
-            if (opt.lightmode)
-            {
-                // delete after taken in light mode
-                blob_mats[bottom_blob_index].release();
-            }
-        }
-        if (bottom_blob.n == 1 || layer->support_batch)
-#endif // NCNN_BATCH
         {
             // forward
             if (opt.lightmode && layer->support_inplace)
@@ -743,76 +691,6 @@ int NetPrivate::do_forward_layer(const Layer* layer, std::vector<Mat>& blob_mats
                 return ret;
         }
 
-#if NCNN_BATCH
-        // detect batch
-        int B = 1;
-        for (size_t i = 0; i < bottom_blobs.size(); i++)
-        {
-            if (bottom_blobs[i].n > 1)
-            {
-                B = bottom_blobs[i].n;
-                break;
-            }
-        }
-        if (B > 1 && !layer->support_batch)
-        {
-            for (size_t i = 0; i < bottom_blobs.size(); i++)
-            {
-                if (bottom_blobs[i].n > 1 && bottom_blobs[i].n != B)
-                {
-                    NCNN_LOGE("layer %d batch size mismatch, bottom %d has batch %d but expected %d", layer->typeindex, (int)i, bottom_blobs[i].n, B);
-                    return -1;
-                }
-            }
-
-            std::vector<Mat> top_batches(layer->tops.size());
-            for (int b = 0; b < B; b++)
-            {
-                std::vector<Mat> bottom_b(bottom_blobs.size());
-                for (size_t i = 0; i < bottom_blobs.size(); i++)
-                {
-                    bottom_b[i] = bottom_blobs[i].n > 1 ? bottom_blobs[i].batch(b) : bottom_blobs[i];
-                }
-
-                std::vector<Mat> top_b(layer->tops.size());
-                int ret = layer->forward(bottom_b, top_b, opt);
-                if (ret != 0)
-                    return ret;
-
-                if (b == 0)
-                {
-                    for (size_t i = 0; i < top_batches.size(); i++)
-                    {
-                        top_batches[i].create_like(top_b[i], B, opt.blob_allocator);
-                        if (top_batches[i].empty())
-                            return -100;
-                    }
-                }
-
-                for (size_t i = 0; i < top_batches.size(); i++)
-                {
-                    memcpy(top_batches[i].batch(b), top_b[i], top_b[i].total() * top_b[i].elemsize);
-                }
-            }
-
-            // store top blobs
-            for (size_t i = 0; i < layer->tops.size(); i++)
-            {
-                int top_blob_index = layer->tops[i];
-                blob_mats[top_blob_index] = top_batches[i];
-            }
-
-            if (opt.lightmode)
-            {
-                for (size_t i = 0; i < layer->bottoms.size(); i++)
-                {
-                    int bottom_blob_index = layer->bottoms[i];
-                    blob_mats[bottom_blob_index].release();
-                }
-            }
-        }
-        if (B == 1 || layer->support_batch)
-#endif // NCNN_BATCH
         {
             // forward
             if (opt.lightmode && layer->support_inplace)
@@ -892,56 +770,6 @@ int NetPrivate::do_forward_layer(const Layer* layer, std::vector<VkMat>& blob_ma
         if (ret != 0)
             return ret;
 
-#if NCNN_BATCH
-        // batch forward
-        if (bottom_blob.n > 1 && !layer->support_batch)
-        {
-            const int B = bottom_blob.n;
-
-            if (opt.lightmode && layer->support_inplace)
-            {
-                for (int b = 0; b < B; b++)
-                {
-                    VkMat batch_view = bottom_blob.batch(b);
-                    int ret = layer->forward_inplace(batch_view, cmd, opt);
-                    if (ret != 0)
-                        return ret;
-                }
-
-                blob_mats_gpu[top_blob_index] = bottom_blob;
-            }
-            else
-            {
-                VkMat top_batch;
-                for (int b = 0; b < B; b++)
-                {
-                    VkMat bottom_b = bottom_blob.batch(b);
-                    VkMat top_b;
-                    int ret = layer->forward(bottom_b, top_b, cmd, opt);
-                    if (ret != 0)
-                        return ret;
-
-                    if (b == 0)
-                    {
-                        top_batch.create_like(top_b, B, opt.blob_vkallocator);
-                        if (top_batch.empty())
-                            return -100;
-                    }
-
-                    VkMat top_batch_slot = top_batch.batch(b);
-                    cmd.record_clone(top_b, top_batch_slot, opt);
-                }
-
-                blob_mats_gpu[top_blob_index] = top_batch;
-            }
-
-            if (opt.lightmode)
-            {
-                blob_mats_gpu[bottom_blob_index].release();
-            }
-        }
-        if (bottom_blob.n == 1 || layer->support_batch)
-#endif // NCNN_BATCH
         {
             // forward
             if (opt.lightmode && layer->support_inplace)
@@ -1002,76 +830,6 @@ int NetPrivate::do_forward_layer(const Layer* layer, std::vector<VkMat>& blob_ma
                 return ret;
         }
 
-#if NCNN_BATCH
-        // detect batch
-        int B = 1;
-        for (size_t i = 0; i < bottom_blobs.size(); i++)
-        {
-            if (bottom_blobs[i].n > 1)
-            {
-                B = bottom_blobs[i].n;
-                break;
-            }
-        }
-        if (B > 1 && !layer->support_batch)
-        {
-            for (size_t i = 0; i < bottom_blobs.size(); i++)
-            {
-                if (bottom_blobs[i].n > 1 && bottom_blobs[i].n != B)
-                {
-                    NCNN_LOGE("layer %d batch size mismatch, bottom %d has batch %d but expected %d", layer->typeindex, (int)i, bottom_blobs[i].n, B);
-                    return -1;
-                }
-            }
-
-            std::vector<VkMat> top_batches(layer->tops.size());
-            for (int b = 0; b < B; b++)
-            {
-                std::vector<VkMat> bottom_b(bottom_blobs.size());
-                for (size_t i = 0; i < bottom_blobs.size(); i++)
-                {
-                    bottom_b[i] = bottom_blobs[i].n > 1 ? bottom_blobs[i].batch(b) : bottom_blobs[i];
-                }
-
-                std::vector<VkMat> top_b(layer->tops.size());
-                int ret = layer->forward(bottom_b, top_b, cmd, opt);
-                if (ret != 0)
-                    return ret;
-
-                if (b == 0)
-                {
-                    for (size_t i = 0; i < top_batches.size(); i++)
-                    {
-                        top_batches[i].create_like(top_b[i], B, opt.blob_vkallocator);
-                        if (top_batches[i].empty())
-                            return -100;
-                    }
-                }
-
-                for (size_t i = 0; i < top_batches.size(); i++)
-                {
-                    VkMat top_batch_slot = top_batches[i].batch(b);
-                    cmd.record_clone(top_b[i], top_batch_slot, opt);
-                }
-            }
-
-            for (size_t i = 0; i < layer->tops.size(); i++)
-            {
-                int top_blob_index = layer->tops[i];
-                blob_mats_gpu[top_blob_index] = top_batches[i];
-            }
-
-            if (opt.lightmode)
-            {
-                for (size_t i = 0; i < layer->bottoms.size(); i++)
-                {
-                    int bottom_blob_index = layer->bottoms[i];
-                    blob_mats_gpu[bottom_blob_index].release();
-                }
-            }
-        }
-        if (B == 1 || layer->support_batch)
-#endif // NCNN_BATCH
         {
             // forward
             if (opt.lightmode && layer->support_inplace)
