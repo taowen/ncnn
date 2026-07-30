@@ -3,46 +3,26 @@
 macro(ncnn_add_layer class)
     string(TOLOWER ${class} name)
 
-    # WITH_LAYER_xxx option
-    if(${ARGC} EQUAL 2)
-        option(WITH_LAYER_${name} "build with layer ${name}" ${ARGV1})
-    else()
-        option(WITH_LAYER_${name} "build with layer ${name}" ON)
+    set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/${name}.cpp)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
+        set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
+    endif()
+    list(APPEND ncnn_SRCS ${LAYER_CPU_SRC})
+
+    set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/${name}_vulkan.cpp)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
+        set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
+    endif()
+    if(EXISTS ${LAYER_VULKAN_SRC})
+        set(WITH_LAYER_${name}_vulkan 1)
+        list(APPEND ncnn_SRCS ${LAYER_VULKAN_SRC})
     endif()
 
-    if(NCNN_CMAKE_VERBOSE)
-        message(STATUS "WITH_LAYER_${name} = ${WITH_LAYER_${name}}")
-    endif()
-
-    if(WITH_LAYER_${name})
-        set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/${name}.cpp)
-        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
-            set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
-        endif()
-        list(APPEND ncnn_SRCS ${LAYER_CPU_SRC})
-
-        set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/${name}_vulkan.cpp)
-        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
-            set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}_vulkan.cpp)
-        endif()
-        if(NCNN_VULKAN AND EXISTS ${LAYER_VULKAN_SRC})
-            set(WITH_LAYER_${name}_vulkan 1)
-            list(APPEND ncnn_SRCS ${LAYER_VULKAN_SRC})
-        endif()
-    endif()
-
-    # generate layer_declaration and layer_registry file
-    if(WITH_LAYER_${name})
-        set(layer_declaration "${layer_declaration}#include \"layer/${name}.h\"\n")
-        # Input describes the graph boundary. Packing and Cast are the two
-        # CPU-side utilities Vulkan model upload needs to arrange and convert
-        # immutable constants before recording their transfer. None is an
-        # inference fallback.
-        if(name STREQUAL "input" OR name STREQUAL "packing" OR name STREQUAL "cast")
-            set(layer_declaration "${layer_declaration}namespace ncnn { DEFINE_LAYER_CREATOR(${class}) }\n")
-        endif()
-
-        source_group ("sources\\\\layers" FILES "${LAYER_CPU_SRC}")
+    set(layer_declaration "${layer_declaration}#include \"layer/${name}.h\"\n")
+    # Input describes the graph boundary. Packing and Cast are the two CPU-side
+    # utilities needed to arrange immutable constants before Vulkan upload.
+    if(name STREQUAL "input" OR name STREQUAL "packing" OR name STREQUAL "cast")
+        set(layer_declaration "${layer_declaration}namespace ncnn { DEFINE_LAYER_CREATOR(${class}) }\n")
     endif()
 
     if(WITH_LAYER_${name}_vulkan)
@@ -62,7 +42,7 @@ macro(ncnn_add_layer class)
         source_group ("sources\\\\layers\\\\vulkan" FILES "${LAYER_VULKAN_SRC}")
     endif()
 
-    if(WITH_LAYER_${name} AND (name STREQUAL "input" OR name STREQUAL "packing" OR name STREQUAL "cast"))
+    if(name STREQUAL "input" OR name STREQUAL "packing" OR name STREQUAL "cast")
         set(layer_registry "${layer_registry}#if NCNN_STRING\n{\"${class}\", ${class}_layer_creator},\n#else\n{${class}_layer_creator},\n#endif\n")
     else()
         set(layer_registry "${layer_registry}#if NCNN_STRING\n{\"${class}\", 0},\n#else\n{0},\n#endif\n")

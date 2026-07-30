@@ -3,6 +3,7 @@
 
 #include "command.h"
 
+
 #if NCNN_VULKAN
 
 #include "option.h"
@@ -1270,6 +1271,7 @@ void VkCompute::record_pipeline(const Pipeline* pipeline, const std::vector<VkMa
 
     const int binding_count = buffer_binding_count + image_binding_count;
     const ShaderInfo& shader_info = pipeline->shader_info();
+
 
     if (binding_count != shader_info.binding_count)
     {

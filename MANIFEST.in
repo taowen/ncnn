@@ -1,8 +1,0 @@
-recursive-include cmake *
-
-recursive-include src *
-
-recursive-include python *
-prune python/pybind11/tests
-
-include CMakeLists.txt
