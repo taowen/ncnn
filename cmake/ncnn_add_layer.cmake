@@ -15,7 +15,11 @@ macro(ncnn_add_layer class)
     endif()
 
     if(WITH_LAYER_${name})
-        list(APPEND ncnn_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/layer/${name}.cpp)
+        set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/${name}.cpp)
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
+            set(LAYER_CPU_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/arctrl/${name}.cpp)
+        endif()
+        list(APPEND ncnn_SRCS ${LAYER_CPU_SRC})
 
         set(LAYER_VULKAN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/layer/vulkan/${name}_vulkan.cpp)
         if(NCNN_VULKAN AND EXISTS ${LAYER_VULKAN_SRC})
@@ -35,7 +39,7 @@ macro(ncnn_add_layer class)
             set(layer_declaration "${layer_declaration}namespace ncnn { DEFINE_LAYER_CREATOR(${class}) }\n")
         endif()
 
-        source_group ("sources\\\\layers" FILES "${CMAKE_CURRENT_SOURCE_DIR}/layer/${name}.cpp")
+        source_group ("sources\\\\layers" FILES "${LAYER_CPU_SRC}")
     endif()
 
     if(WITH_LAYER_${name}_vulkan)

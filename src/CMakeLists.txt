@@ -16,9 +16,7 @@ endfunction()
 
 set(ncnn_SRCS
     allocator.cpp
-    benchmark.cpp
     blob.cpp
-    c_api.cpp
     command.cpp
     cpu.cpp
     datareader.cpp
@@ -26,27 +24,13 @@ set(ncnn_SRCS
     gpu.cpp
     layer.cpp
     mat.cpp
-    mat_pixel.cpp
-    mat_pixel_affine.cpp
-    mat_pixel_drawing.cpp
-    mat_pixel_resize.cpp
-    mat_pixel_rotate.cpp
     modelbin.cpp
     net.cpp
     option.cpp
     paramdict.cpp
     pipeline.cpp
     pipelinecache.cpp
-    simpleocv.cpp
-    simpleomp.cpp
-    simplestl.cpp
-    simplemath.cpp
-    simplevk.cpp
 )
-
-if(ANDROID)
-    list(APPEND ncnn_SRCS mat_pixel_android.cpp)
-endif()
 
 ncnn_src_group(ncnn_SRCS "sources")
 
