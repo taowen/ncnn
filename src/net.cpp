@@ -1093,13 +1093,11 @@ int Net::load_param(const DataReader& dr)
         // sanitize use options
         if (!d->vkdev->info.support_fp16_packed()) opt.use_fp16_packed = false;
         if (!d->vkdev->info.support_fp16_storage()) opt.use_fp16_storage = false;
-        if (!d->vkdev->info.support_int16_storage() || !d->vkdev->info.support_int16_arithmetic()) opt.use_int16_storage = false;
         if (!d->vkdev->info.support_fp16_uniform()) opt.use_fp16_uniform = false;
         if (!d->vkdev->info.support_fp16_arithmetic()) opt.use_fp16_arithmetic = false;
-        if (!d->vkdev->info.support_int8_packed()) opt.use_int8_packed = false;
-        if (!d->vkdev->info.support_int8_storage()) opt.use_int8_storage = false;
-        if (!d->vkdev->info.support_int8_uniform()) opt.use_int8_uniform = false;
-        if (!d->vkdev->info.support_int8_arithmetic()) opt.use_int8_arithmetic = false;
+        // Int8/int16 operators do not exist in the fixed FP16 graph. Keep
+        // their option bits stable because they are part of the immutable
+        // portable-cache key, but never execute the corresponding features.
         if (!d->vkdev->info.support_bf16_packed()) opt.use_bf16_packed = false;
         if (!d->vkdev->info.support_bf16_storage()) opt.use_bf16_storage = false;
         if (!d->vkdev->info.support_cooperative_matrix()) opt.use_cooperative_matrix = false;
@@ -1110,9 +1108,6 @@ int Net::load_param(const DataReader& dr)
 
         // fp16a makes no sense when fp16 storage disabled
         if (!opt.use_fp16_packed && !opt.use_fp16_storage) opt.use_fp16_arithmetic = false;
-
-        // int8a makes no sense when int8 storage disabled
-        if (!opt.use_int8_packed && !opt.use_int8_storage) opt.use_int8_arithmetic = false;
 
         // fp16 uniform makes no sense when fp16 arithmetic disabled
         if (!opt.use_fp16_arithmetic) opt.use_fp16_uniform = false;
@@ -1433,13 +1428,11 @@ int Net::load_param_bin(const DataReader& dr)
         // sanitize use options
         if (!d->vkdev->info.support_fp16_packed()) opt.use_fp16_packed = false;
         if (!d->vkdev->info.support_fp16_storage()) opt.use_fp16_storage = false;
-        if (!d->vkdev->info.support_int16_storage() || !d->vkdev->info.support_int16_arithmetic()) opt.use_int16_storage = false;
         if (!d->vkdev->info.support_fp16_uniform()) opt.use_fp16_uniform = false;
         if (!d->vkdev->info.support_fp16_arithmetic()) opt.use_fp16_arithmetic = false;
-        if (!d->vkdev->info.support_int8_packed()) opt.use_int8_packed = false;
-        if (!d->vkdev->info.support_int8_storage()) opt.use_int8_storage = false;
-        if (!d->vkdev->info.support_int8_uniform()) opt.use_int8_uniform = false;
-        if (!d->vkdev->info.support_int8_arithmetic()) opt.use_int8_arithmetic = false;
+        // Int8/int16 operators do not exist in the fixed FP16 graph. Keep
+        // their option bits stable because they are part of the immutable
+        // portable-cache key, but never execute the corresponding features.
         if (!d->vkdev->info.support_bf16_packed()) opt.use_bf16_packed = false;
         if (!d->vkdev->info.support_bf16_storage()) opt.use_bf16_storage = false;
         if (!d->vkdev->info.support_cooperative_matrix()) opt.use_cooperative_matrix = false;
@@ -1450,9 +1443,6 @@ int Net::load_param_bin(const DataReader& dr)
 
         // fp16a makes no sense when fp16 storage disabled
         if (!opt.use_fp16_packed && !opt.use_fp16_storage) opt.use_fp16_arithmetic = false;
-
-        // int8a makes no sense when int8 storage disabled
-        if (!opt.use_int8_packed && !opt.use_int8_storage) opt.use_int8_arithmetic = false;
 
         // fp16 uniform makes no sense when fp16 arithmetic disabled
         if (!opt.use_fp16_arithmetic) opt.use_fp16_uniform = false;
