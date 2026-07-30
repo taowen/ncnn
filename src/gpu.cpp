@@ -634,6 +634,14 @@ void GpuInfoPrivate::query_queue_properties()
     compute_queue_family_index = find_device_compute_queue(queueFamilyProperties);
     transfer_queue_family_index = find_device_transfer_queue(queueFamilyProperties);
 
+    // An external runtime supplies one queue, not a second queue from a
+    // dedicated transfer family. Compute-capable queues can execute transfer
+    // commands, so keep ncnn's upload path on the imported queue.
+    if (g_external_runtime.device)
+    {
+        transfer_queue_family_index = compute_queue_family_index;
+    }
+
     compute_queue_count = queueFamilyProperties[compute_queue_family_index].queueCount;
     transfer_queue_count = queueFamilyProperties[transfer_queue_family_index].queueCount;
 
